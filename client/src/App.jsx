@@ -47,7 +47,7 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 selection:bg-amber-500 selection:text-slate-950 font-mono">
 
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b15_1px,transparent_1px),linear-gradient(to_bottom,#1e293b15_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none"></div>
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b15_1px,transparent_1px),linear-gradient(to_bottom,#1e293b15_1px,transparent_1px)] bg-size-[4rem_4rem] pointer-events-none"></div>
 
       <header className="mb-8 text-center relative z-10">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400 text-xs tracking-widest uppercase mb-3">
@@ -67,7 +67,7 @@ function App() {
         <div className="space-y-6 mt-2">
 
           <div>
-            <label className="block text-xs uppercase tracking-wider font-semibold mb-2 text-slate-400 flex items-center gap-2">
+            <label className="text-xs uppercase tracking-wider font-semibold mb-2 text-slate-400 flex items-center gap-2">
               Status: <span className="text-amber-400">{filters.canLeaveHouse ? 'Ready to Roam' : 'Homebound'}</span>
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -114,7 +114,7 @@ function App() {
           </div>
 
           <div>
-            <label className="block text-xs uppercase tracking-wider font-semibold mb-2 text-slate-400 flex items-center gap-2">
+            <label className="text-xs uppercase tracking-wider font-semibold mb-2 text-slate-400 flex items-center gap-2">
               <FaCoins className="inline" /> Financial Commitment
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -141,7 +141,7 @@ function App() {
           <button
             onClick={fetchQuest}
             disabled={loading}
-            className="w-full mt-4 py-4 bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 font-black uppercase tracking-wider rounded-lg shadow-lg hover:brightness-110 active:scale-[0.99] transition flex items-center justify-center gap-3 disabled:opacity-50">
+            className="w-full mt-4 py-4 bg-linear-to-r from-amber-500 to-orange-600 text-slate-950 font-black uppercase tracking-wider rounded-lg shadow-lg hover:brightness-110 active:scale-[0.99] transition flex items-center justify-center gap-3 disabled:opacity-50">
             <FaDiceD20 className={`text-xl ${loading ? 'animate-spin' : ''}`} />
             {loading ? 'Processing Parameters...' : 'Accept a Sidequest'}
           </button>
