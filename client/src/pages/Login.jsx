@@ -1,12 +1,12 @@
-export default function Login({ 
-  authMode, 
-  setAuthMode, 
-  formUsername, 
-  setFormUsername, 
-  formPassword, 
-  setFormPassword, 
-  handleAuth, 
-  authError 
+export default function Login({
+  authMode,
+  setAuthMode,
+  formUsername,
+  setFormUsername,
+  formPassword,
+  setFormPassword,
+  handleAuth,
+  authError
 }) {
   const isLogin = authMode === 'login';
 
@@ -36,9 +36,9 @@ export default function Login({
         <form onSubmit={handleAuth} className="space-y-4">
           <div>
             <label className="block text-xs uppercase text-slate-400 mb-1">Codename (Username)</label>
-            <input 
-              type="text" 
-              value={formUsername} 
+            <input
+              type="text"
+              value={formUsername}
               onChange={(e) => setFormUsername(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 p-3 text-sm text-slate-100 focus:border-amber-500 outline-none"
               required
@@ -46,28 +46,28 @@ export default function Login({
           </div>
           <div>
             <label className="block text-xs uppercase text-slate-400 mb-1">Passcode</label>
-            <input 
-              type="password" 
-              value={formPassword} 
+            <input
+              id="password"
+              type="password"
+              value={formPassword}
               onChange={(e) => setFormPassword(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 p-3 text-sm text-slate-100 focus:border-amber-500 outline-none"
               required
             />
           </div>
-          <button 
+          <button
             type="submit"
-            className={`w-full py-3 font-black uppercase text-xs tracking-wider transition border ${
-              isLogin 
-                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400' 
-                : 'bg-emerald-600 hover:bg-emerald-500 text-slate-950 border-emerald-500'
-            }`}
+            className={`w-full py-3 font-black uppercase text-xs tracking-wider transition border ${isLogin
+              ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400'
+              : 'bg-emerald-600 hover:bg-emerald-500 text-slate-950 border-emerald-500'
+              }`}
           >
             {isLogin ? 'Initialize Session' : 'Register Operative'}
           </button>
         </form>
 
         <div className="mt-4 text-center">
-          <button 
+          <button
             onClick={() => setAuthMode(isLogin ? 'register' : 'login')}
             className="text-xs text-slate-400 hover:text-amber-400 underline"
           >

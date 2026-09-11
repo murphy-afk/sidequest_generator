@@ -59,7 +59,7 @@ export default function VerificationModal({ quest, trackingId, onClose, onSucces
               {Math.floor(timeLeft / 60)}:{('0' + (timeLeft % 60)).slice(-2)}
             </div>
             {!timerActive ? (
-              <button 
+              <button
                 onClick={() => setTimerActive(true)}
                 className="px-4 py-2 bg-amber-500 text-slate-950 font-bold text-xs uppercase"
               >
@@ -69,7 +69,7 @@ export default function VerificationModal({ quest, trackingId, onClose, onSucces
               <p className="text-xs text-slate-400">Timer running... Remain focused.</p>
             )}
             {timeLeft === 0 && (
-              <button 
+              <button
                 onClick={handleVerify}
                 className="mt-4 w-full py-3 bg-emerald-600 text-slate-950 font-bold text-xs uppercase"
               >
@@ -86,15 +86,15 @@ export default function VerificationModal({ quest, trackingId, onClose, onSucces
               <FaQuestionCircle className="text-amber-500 text-base shrink-0 mt-0.5" />
               <p>{JSON.parse(quest.verification_data || '{}').question || 'Answer the verification prompt:'}</p>
             </div>
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Enter answer..."
               value={quizAnswer}
               onChange={(e) => { setQuizAnswer(e.target.value); setQuizError(false); }}
               className="w-full bg-slate-950 border border-slate-800 p-3 text-xs text-slate-100 focus:border-amber-500 outline-none"
             />
             {quizError && <p className="text-red-400 text-[10px]">Incorrect answer. Try again.</p>}
-            <button 
+            <button
               onClick={handleVerify}
               className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs uppercase"
             >
@@ -109,15 +109,15 @@ export default function VerificationModal({ quest, trackingId, onClose, onSucces
             <div className="border-2 border-dashed border-slate-700 p-6 bg-slate-950">
               <FaUpload className="text-3xl text-slate-500 mx-auto mb-2" />
               <p className="text-xs text-slate-400 mb-2">Upload field evidence photo</p>
-              <input 
-                type="file" 
+              <input
+                type="file"
                 accept="image/*"
                 onChange={() => setPhotoUploaded(true)}
                 className="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-slate-950"
               />
             </div>
             {photoUploaded && (
-              <button 
+              <button
                 onClick={handleVerify}
                 className="w-full py-3 bg-emerald-600 text-slate-950 font-bold text-xs uppercase"
               >

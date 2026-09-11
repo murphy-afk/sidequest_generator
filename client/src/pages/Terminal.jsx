@@ -1,5 +1,4 @@
 import { FaWalking, FaHome, FaDiceD20, FaExclamationTriangle } from 'react-icons/fa';
-import QuestCard from '../components/QuestCard';
 
 export default function Terminal({
   filters,
@@ -7,11 +6,19 @@ export default function Terminal({
   fetchQuest,
   loading,
   error,
-  quest,
-  completeQuest
+  activeQuest,
+  openActiveProgress
 }) {
+  const handleClick = () => {
+    if (activeQuest) {
+      openActiveProgress();
+    } else {
+      fetchQuest();
+    }
+  };
+
   return (
-    <div className="w-full max-w-xl bg-slate-900 border border-slate-800 p-6 shadow-2xl relative z-10">
+    <div className="w-full max-w-xl bg-slate-900 border border-slate-800 p-6 shadow-2xl relative z-10 font-mono">
       <div className="space-y-6">
         <div>
           <label className="block text-xs uppercase tracking-wider font-semibold mb-2 text-slate-400">
@@ -19,6 +26,7 @@ export default function Terminal({
           </label>
           <div className="grid grid-cols-2 gap-3">
             <button
+              type="button"
               onClick={() => setFilters({ ...filters, canLeaveHouse: true })}
               className={`py-3 px-4 font-bold text-sm transition flex items-center justify-center gap-2 border ${filters.canLeaveHouse ? 'bg-amber-500/10 border-amber-500 text-amber-400' : 'bg-slate-800/50 border-slate-700 text-slate-400'
                 }`}
@@ -26,6 +34,7 @@ export default function Terminal({
               <FaWalking className="inline" /> Leave House
             </button>
             <button
+              type="button"
               onClick={() => setFilters({ ...filters, canLeaveHouse: false })}
               className={`py-3 px-4 font-bold text-sm transition flex items-center justify-center gap-2 border ${!filters.canLeaveHouse ? 'bg-amber-500/10 border-amber-500 text-amber-400' : 'bg-slate-800/50 border-slate-700 text-slate-400'
                 }`}
@@ -60,6 +69,7 @@ export default function Terminal({
             ].map((item) => (
               <button
                 key={item.val}
+                type="button"
                 onClick={() => setFilters({ ...filters, budget: item.val })}
                 className={`py-2 px-2 text-xs font-bold transition border ${filters.budget === item.val ? 'bg-amber-500 text-slate-950 border-amber-400' : 'bg-slate-800/50 border-slate-700 text-slate-300'
                   }`}
@@ -71,12 +81,18 @@ export default function Terminal({
         </div>
 
         <button
-          onClick={fetchQuest}
+          type="button"
+          onClick={handleClick}
           disabled={loading}
-          className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black uppercase text-xs tracking-wider transition flex items-center justify-center gap-3 border border-amber-400"
+          className={`w-full py-4 font-black uppercase text-xs tracking-wider transition flex items-center justify-center gap-3 border ${loading
+              ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+              : activeQuest
+                ? 'bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-400 border-emerald-500/50'
+                : 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400'
+            }`}
         >
           <FaDiceD20 className={`text-lg ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Processing Parameters...' : 'Accept a Sidequest'}
+          {loading ? 'Processing Parameters...' : activeQuest ? 'Active sidequest in progress' : 'Accept a Sidequest'}
         </button>
       </div>
 
@@ -85,8 +101,6 @@ export default function Terminal({
           <FaExclamationTriangle /> {error}
         </div>
       )}
-
-      <QuestCard quest={quest} onComplete={completeQuest} onReroll={fetchQuest} />
     </div>
   );
 }

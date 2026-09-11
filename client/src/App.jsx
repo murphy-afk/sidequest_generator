@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
-import NavBar from './components/NavBar';
+import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Terminal from './pages/Terminal';
 import History from './pages/History';
+import PausedQuests from './pages/PausedQuests';
+import QuestPreviewModal from './components/QuestPreviewModal';
+import ActiveQuestModal from './components/ActiveQuestModal';
+import VerificationModal from './components/VerificationModal';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -13,6 +17,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('terminal');
   const [completedHistory, setCompletedHistory] = useState([]);
+  const [pausedList, setPausedList] = useState([]);
 
   const [filters, setFilters] = useState({
     canLeaveHouse: true,
@@ -21,9 +26,13 @@ export default function App() {
     adventurousness: 3,
   });
 
-  const [quest, setQuest] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const [previewQuest, setPreviewQuest] = useState(null);
+  const [activeQuest, setActiveQuest] = useState(null);
+  const [showActiveModal, setShowActiveModal] = useState(false);
+  const [verificationQuest, setVerificationQuest] = useState(null);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -60,31 +69,132 @@ export default function App() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Failed to fetch quest');
-      setQuest(data);
+
+      setPreviewQuest(data);
     } catch (err) {
       setError(err.message);
-      setQuest(null);
+      setPreviewQuest(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const completeQuest = async () => {
-    if (!quest || !user) return;
+  const acceptQuest = async () => {
+    if (!previewQuest || !user) return;
     try {
-      const res = await fetch('http://localhost:5000/api/complete-quest', {
+      const res = await fetch('http://localhost:5000/api/accept-quest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, questId: quest.id, xpReward: quest.xpReward })
+        body: JSON.stringify({ userId: user.id, questId: previewQuest.id, status: 'active' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      const acceptedData = {
+        ...previewQuest,
+        trackingId: data.trackingId,
+        startTime: data.startTime
+      };
+      setActiveQuest(acceptedData);
+      setPreviewQuest(null);
+      setShowActiveModal(true);
+    } catch (err) {
+      alert('Error accepting quest: ' + err.message);
+    }
+  };
+
+  const pauseQuest = async (currentRemainingSeconds) => {
+    if (!activeQuest) return;
+    try {
+      const res = await fetch('http://localhost:5000/api/pause-quest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trackingId: activeQuest.trackingId,
+          remainingSeconds: currentRemainingSeconds
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      setActiveQuest(null);
+      setShowActiveModal(false);
+      alert('Sidequest paused and moved to archive.');
+    } catch (err) {
+      alert('Failed to pause quest: ' + err.message);
+    }
+  };
+
+  const resumeQuest = async (item) => {
+    if (activeQuest) {
+      alert('Cannot resume quest while another sidequest is currently active!');
+      return;
+    }
+
+    try {
+      const res = await fetch('http://localhost:5000/api/resume-quest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackingId: item.tracking_id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      setActiveQuest({
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        xpReward: item.xp_reward,
+        verification_type: item.verification_type,
+        verification_data: item.verification_data,
+        trackingId: item.tracking_id,
+        startTime: data.startTime
+      });
+
+      setActiveTab('terminal');
+      setShowActiveModal(true);
+    } catch (err) {
+      alert('Failed to resume quest: ' + err.message);
+    }
+  };
+
+  const verifyAndComplete = async (trackingIdToUse) => {
+    const targetQuest = activeQuest || verificationQuest;
+    if (!targetQuest || !user) return;
+
+    try {
+      const res = await fetch('http://localhost:5000/api/verify-and-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trackingId: trackingIdToUse || targetQuest.trackingId || null,
+          userId: user.id,
+          questId: targetQuest.id,
+          xpReward: targetQuest.xpReward
+        })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
       setUser({ ...user, xp: data.newXp, level: data.newLevel });
-      alert(`Objective complete! Gained ${quest.xpReward} XP.`);
-      setQuest(null);
+      alert(`Objective verified & complete! Gained ${targetQuest.xpReward} XP.`);
+
+      setActiveQuest(null);
+      setShowActiveModal(false);
+      setVerificationQuest(null);
     } catch (err) {
-      alert('Error completing quest: ' + err.message);
+      alert('Error verifying quest: ' + err.message);
+    }
+  };
+
+  const fetchPausedQuests = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/paused-quests/${user.id}`);
+      const data = await res.json();
+      if (res.ok) setPausedList(data);
+    } catch (err) {
+      console.error('Failed to load paused quests');
     }
   };
 
@@ -100,9 +210,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (activeTab === 'history') {
-      fetchHistory();
-    }
+    if (activeTab === 'paused') fetchPausedQuests();
+    if (activeTab === 'history') fetchHistory();
   }, [activeTab]);
 
   if (!user) {
@@ -124,7 +233,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 selection:bg-amber-500 selection:text-slate-950 font-mono">
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b15_1px,transparent_1px),linear-gradient(to_bottom,#1e293b15_1px,transparent_1px)] bg-size-[4rem_4rem] pointer-events-none"></div>
 
-      <NavBar
+      <Navbar
         user={user}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -137,18 +246,62 @@ export default function App() {
         </h1>
       </header>
 
-      {activeTab === 'terminal' ? (
+      {activeTab === 'terminal' && (
         <Terminal
           filters={filters}
           setFilters={setFilters}
           fetchQuest={fetchQuest}
           loading={loading}
           error={error}
-          quest={quest}
-          completeQuest={completeQuest}
+          activeQuest={activeQuest}
+          openActiveProgress={() => setShowActiveModal(true)}
         />
-      ) : (
+      )}
+
+      {activeTab === 'paused' && (
+        <PausedQuests
+          pausedList={pausedList}
+          onResume={resumeQuest}
+          onOpenVerify={(item) => setVerificationQuest(item)}
+        />
+      )}
+
+      {activeTab === 'history' && (
         <History completedHistory={completedHistory} />
+      )}
+
+      {previewQuest && (
+        <QuestPreviewModal
+          quest={previewQuest}
+          onClose={() => setPreviewQuest(null)}
+          onReroll={fetchQuest}
+          onAccept={acceptQuest}
+        />
+      )}
+
+      {showActiveModal && activeQuest && (
+        <ActiveQuestModal
+          quest={activeQuest}
+          onClose={() => setShowActiveModal(false)}
+          onPause={pauseQuest}
+          onVerify={() => {
+            setShowActiveModal(false);
+            if (activeQuest.verification_type === 'timer') {
+              verifyAndComplete(activeQuest.trackingId);
+            } else {
+              setVerificationQuest(activeQuest);
+            }
+          }}
+        />
+      )}
+
+      {verificationQuest && (
+        <VerificationModal
+          quest={verificationQuest}
+          trackingId={verificationQuest.trackingId}
+          onClose={() => setVerificationQuest(null)}
+          onSuccess={verifyAndComplete}
+        />
       )}
     </div>
   );

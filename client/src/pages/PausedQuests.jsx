@@ -18,11 +18,11 @@ export default function PausedQuests({ pausedList, onResume, onOpenVerify }) {
               </div>
               <p className="text-slate-400 text-xs mb-3">{item.description}</p>
               <div className="flex gap-2">
-                <button 
-                  onClick={() => onOpenVerify(item)}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold py-2 uppercase flex items-center justify-center gap-1"
+                <button
+                  onClick={() => onResume(item)}
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 uppercase flex items-center justify-center gap-1 transition"
                 >
-                  <FaCheck /> Resume & Verify
+                  <FaPlay /> Resume Quest
                 </button>
               </div>
             </div>

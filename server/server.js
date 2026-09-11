@@ -29,7 +29,7 @@ db.getConnection((err, connection) => {
   connection.release();
 });
 
-// API Endpoint to generate a quest dynamically using SQL filters
+// API Endpoint 
 app.post('/api/generate-quest', (req, res) => {
   const { canLeaveHouse, budget, locationType, adventurousness } = req.body;
 
@@ -52,7 +52,7 @@ app.post('/api/generate-quest', (req, res) => {
     }
 
     const randomQuest = results[Math.floor(Math.random() * results.length)];
-    
+
     const formattedQuest = {
       id: randomQuest.id,
       title: randomQuest.title,
@@ -77,16 +77,16 @@ app.post('/api/register', async (req, res) => {
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     db.query('INSERT INTO users (username, password_hash) VALUES (?, ?)', [username, hashedPassword], (err, result) => {
       if (err) {
         if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ message: 'Username already taken' });
         return res.status(500).json({ message: 'Database error' });
       }
-      
+
       const userId = result.insertId;
       db.query('INSERT INTO user_profiles (user_id, xp, level) VALUES (?, 0, 1)', [userId]);
-      
+
       res.json({ message: 'User registered successfully', userId });
     });
   } catch (err) {
@@ -116,13 +116,18 @@ app.post('/api/login', (req, res) => {
   });
 });
 
-// Accept / Start a Quest (Sets status to 'active' or 'paused')
+// Accept / Start a Quest (Sets status to 'active' and records timestamp)
 app.post('/api/accept-quest', (req, res) => {
   const { userId, questId, status = 'active' } = req.body;
 
-  db.query('INSERT INTO completed_quests (user_id, quest_id, status) VALUES (?, ?, ?)', [userId, questId, status], (err, result) => {
+  const query = 'INSERT INTO completed_quests (user_id, quest_id, status, completed_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)';
+  db.query(query, [userId, questId, status], (err, result) => {
     if (err) return res.status(500).json({ message: 'Failed to accept quest' });
-    res.json({ message: 'Quest logged', trackingId: result.insertId });
+
+    db.query('SELECT completed_at FROM completed_quests WHERE id = ?', [result.insertId], (err, results) => {
+      const startTime = results[0] ? results[0].completed_at : new Date();
+      res.json({ message: 'Quest logged', trackingId: result.insertId, startTime });
+    });
   });
 });
 
@@ -142,12 +147,62 @@ app.get('/api/paused-quests/:userId', (req, res) => {
   });
 });
 
-// Pause an Active Quest
+// Pause an Active Quest (now saves remaining time)
 app.post('/api/pause-quest', (req, res) => {
-  const { trackingId } = req.body;
-  db.query("UPDATE completed_quests SET status = 'paused' WHERE id = ?", [trackingId], (err) => {
+  const { trackingId, remainingSeconds } = req.body;
+  const query = "UPDATE completed_quests SET status = 'paused', remaining_seconds = ? WHERE id = ?";
+
+  db.query(query, [remainingSeconds, trackingId], (err) => {
     if (err) return res.status(500).json({ message: 'Failed to pause quest' });
     res.json({ message: 'Quest paused successfully' });
+  });
+});
+
+// Resume a Paused Quest (Restores status to 'active' and adjusts start time)
+app.post('/api/resume-quest', (req, res) => {
+  const { trackingId } = req.body;
+
+  // get the paused quest data and its remaining seconds
+  const fetchQuery = `
+    SELECT cq.remaining_seconds, q.verification_data 
+    FROM completed_quests cq
+    JOIN quests q ON cq.quest_id = q.id
+    WHERE cq.id = ?
+  `;
+
+  db.query(fetchQuery, [trackingId], (err, results) => {
+    if (err || results.length === 0) return res.status(500).json({ message: 'Quest not found' });
+
+    const row = results[0];
+    let totalDurationSecs = 60;
+    try {
+      if (row.verification_data) {
+        const parsed = JSON.parse(row.verification_data);
+        totalDurationSecs = parseInt(parsed.durationSeconds || parsed.durationMinutes * 60 || 60, 10);
+      }
+    } catch (e) { }
+
+    const remaining = row.remaining_seconds !== null ? row.remaining_seconds : totalDurationSecs;
+    const elapsed = totalDurationSecs - remaining;
+
+    // Update status to active and adjust completed_at 
+    const updateQuery = `
+      UPDATE completed_quests 
+      SET status = 'active', 
+          completed_at = DATE_SUB(NOW(), INTERVAL ? SECOND), 
+          remaining_seconds = NULL 
+      WHERE id = ?
+    `;
+
+    db.query(updateQuery, [elapsed, trackingId], (err) => {
+      if (err) return res.status(500).json({ message: 'Failed to resume quest' });
+
+      // Return the updated start time
+      db.query('SELECT completed_at FROM completed_quests WHERE id = ?', [trackingId], (err, timeResult) => {
+        const startTime = timeResult[0] ? timeResult[0].completed_at : new Date();
+        res.json({ message: 'Quest resumed', startTime });
+      });
+    });
   });
 });
 
@@ -155,10 +210,10 @@ app.post('/api/pause-quest', (req, res) => {
 app.post('/api/verify-and-complete', (req, res) => {
   const { trackingId, userId, questId, xpReward } = req.body;
 
-  const updateQuery = trackingId 
+  const updateQuery = trackingId
     ? "UPDATE completed_quests SET status = 'completed' WHERE id = ?"
     : "INSERT INTO completed_quests (user_id, quest_id, status) VALUES (?, ?, 'completed')";
-  
+
   const queryParams = trackingId ? [trackingId] : [userId, questId];
 
   db.query(updateQuery, queryParams, (err) => {
