@@ -1,41 +1,46 @@
-import { useState, useEffect } from 'react';
-import { FaTimes, FaCheck, FaClock, FaQuestionCircle, FaUpload } from 'react-icons/fa';
+import { useState } from 'react';
+import { FaTimes, FaCheck, FaQuestionCircle, FaCamera, FaHourglassHalf } from 'react-icons/fa';
 
 export default function VerificationModal({ quest, trackingId, onClose, onSuccess }) {
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [timerActive, setTimerActive] = useState(false);
-  const [quizAnswer, setQuizAnswer] = useState('');
+  if (!quest) return null;
+
+  let verificationData = {};
+  try {
+    verificationData = typeof quest.verification_data === 'string'
+      ? JSON.parse(quest.verification_data)
+      : quest.verification_data || {};
+  } catch (e) {
+    verificationData = {};
+  }
+
+  // State for quiz type
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [quizError, setQuizError] = useState(false);
-  const [photoUploaded, setPhotoUploaded] = useState(false);
 
-  useEffect(() => {
-    if (quest.verification_type === 'timer') {
-      setTimeLeft(parseInt(quest.verification_data || '60', 10));
-    }
-  }, [quest]);
+  // State for photo upload type
+  const [selectedFile, setSelectedFile] = useState(null);
 
-  useEffect(() => {
-    let interval = null;
-    if (timerActive && timeLeft > 0) {
-      interval = setInterval(() => setTimeLeft(t => t - 1), 1000);
-    } else if (timeLeft === 0 && timerActive) {
-      setTimerActive(false);
-    }
-    return () => clearInterval(interval);
-  }, [timerActive, timeLeft]);
+  const handleVerifySubmit = (e) => {
+    e.preventDefault();
 
-  const handleVerify = () => {
     if (quest.verification_type === 'quiz') {
-      try {
-        const parsedData = JSON.parse(quest.verification_data);
-        if (quizAnswer.trim().toLowerCase() !== parsedData.answer.toLowerCase()) {
-          setQuizError(true);
-          return;
-        }
-      } catch (e) {
-        // Fallback if data is raw string
+      if (selectedAnswer === verificationData.correctAnswer) {
+        onSuccess(trackingId);
+      } else {
+        setQuizError(true);
       }
+      return;
     }
+
+    if (quest.verification_type === 'photo') {
+      if (!selectedFile) {
+        alert('Please upload photo proof to complete verification.');
+        return;
+      }
+      onSuccess(trackingId);
+      return;
+    }
+
     onSuccess(trackingId);
   };
 
@@ -46,86 +51,81 @@ export default function VerificationModal({ quest, trackingId, onClose, onSucces
           <FaTimes />
         </button>
 
-        <h3 className="text-sm uppercase tracking-widest text-amber-400 font-bold mb-2 flex items-center gap-2">
-          Objective Verification Required
-        </h3>
-        <h2 className="text-lg font-black text-white mb-4">{quest.title}</h2>
+        <div className="absolute top-4 left-6 bg-amber-500 text-slate-950 text-[10px] font-black px-2 py-0.5 uppercase">
+          Field Checkpoint
+        </div>
 
-        {/* TIMER VERIFICATION */}
-        {quest.verification_type === 'timer' && (
-          <div className="text-center py-6">
-            <FaClock className="text-4xl text-amber-500 mx-auto mb-3" />
-            <div className="text-3xl font-black text-white mb-4">
-              {Math.floor(timeLeft / 60)}:{('0' + (timeLeft % 60)).slice(-2)}
-            </div>
-            {!timerActive ? (
-              <button
-                onClick={() => setTimerActive(true)}
-                className="px-4 py-2 bg-amber-500 text-slate-950 font-bold text-xs uppercase"
-              >
-                Start Timer
-              </button>
-            ) : (
-              <p className="text-xs text-slate-400">Timer running... Remain focused.</p>
-            )}
-            {timeLeft === 0 && (
-              <button
-                onClick={handleVerify}
-                className="mt-4 w-full py-3 bg-emerald-600 text-slate-950 font-bold text-xs uppercase"
-              >
-                <FaCheck className="inline" /> Confirm Completion
-              </button>
-            )}
-          </div>
-        )}
+        <h2 className="text-lg font-black text-white mt-6 mb-2">
+          {quest.title}
+        </h2>
+        <p className="text-slate-300 text-xs mb-6">
+          Answer this checkpoint question based on your discovery to verify completion:
+        </p>
 
-        {/* QUIZ VERIFICATION */}
+        {/* 1. QUIZ / DISCOVERY CHECKPOINT */}
         {quest.verification_type === 'quiz' && (
-          <div className="space-y-4 py-2">
-            <div className="flex items-start gap-2 text-xs text-slate-300">
-              <FaQuestionCircle className="text-amber-500 text-base shrink-0 mt-0.5" />
-              <p>{JSON.parse(quest.verification_data || '{}').question || 'Answer the verification prompt:'}</p>
+          <div className="space-y-4 mb-6">
+            <div className="text-xs font-bold text-amber-400 flex items-center gap-2 leading-relaxed">
+              <FaQuestionCircle className="shrink-0" />
+              <span>{verificationData.question || 'Answer the following question about your discovery:'}</span>
             </div>
-            <input
-              type="text"
-              placeholder="Enter answer..."
-              value={quizAnswer}
-              onChange={(e) => { setQuizAnswer(e.target.value); setQuizError(false); }}
-              className="w-full bg-slate-950 border border-slate-800 p-3 text-xs text-slate-100 focus:border-amber-500 outline-none"
-            />
-            {quizError && <p className="text-red-400 text-[10px]">Incorrect answer. Try again.</p>}
-            <button
-              onClick={handleVerify}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs uppercase"
-            >
-              Submit Answer & Complete
-            </button>
+            <div className="space-y-2">
+              {verificationData.options && verificationData.options.map((option, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => { setSelectedAnswer(index); setQuizError(false); }}
+                  className={`w-full text-left p-3 text-xs border transition ${selectedAnswer === index
+                      ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold'
+                      : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                    }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            {quizError && (
+              <p className="text-red-400 text-xs font-bold">Incorrect answer. Look closer at your surroundings and try again!</p>
+            )}
           </div>
         )}
 
-        {/* PHOTO VERIFICATION */}
+        {/* 2. PHOTO VERIFICATION */}
         {quest.verification_type === 'photo' && (
-          <div className="space-y-4 py-2 text-center">
-            <div className="border-2 border-dashed border-slate-700 p-6 bg-slate-950">
-              <FaUpload className="text-3xl text-slate-500 mx-auto mb-2" />
-              <p className="text-xs text-slate-400 mb-2">Upload field evidence photo</p>
+          <div className="space-y-4 mb-6">
+            <div className="text-xs font-bold text-amber-400 flex items-center gap-2">
+              <FaCamera /> {verificationData.prompt || 'Upload photographic proof of your discovery:'}
+            </div>
+            <label className="border-2 border-dashed border-slate-700 hover:border-amber-500 bg-slate-950 p-6 flex flex-col items-center justify-center cursor-pointer transition">
+              <FaCamera className="text-slate-500 text-2xl mb-2" />
+              <span className="text-xs text-slate-300 font-bold text-center">
+                {selectedFile ? selectedFile.name : 'Click to select image file'}
+              </span>
               <input
                 type="file"
                 accept="image/*"
-                onChange={() => setPhotoUploaded(true)}
-                className="text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-slate-950"
+                className="hidden"
+                onChange={(e) => setSelectedFile(e.target.files[0])}
               />
-            </div>
-            {photoUploaded && (
-              <button
-                onClick={handleVerify}
-                className="w-full py-3 bg-emerald-600 text-slate-950 font-bold text-xs uppercase"
-              >
-                Upload & Complete Quest
-              </button>
-            )}
+            </label>
           </div>
         )}
+
+        {/* 3. TIMER / STANDARD FALLBACK */}
+        {quest.verification_type !== 'quiz' && quest.verification_type !== 'photo' && (
+          <div className="mb-6 bg-slate-950 border border-slate-800 p-4 text-xs text-slate-400 text-center">
+            Click verify below to finalize objective completion.
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            onClick={handleVerifySubmit}
+            className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase py-3 transition flex items-center justify-center gap-1 border border-amber-400 cursor-pointer"
+          >
+            <FaCheck /> Submit Verification
+          </button>
+        </div>
       </div>
     </div>
   );
