@@ -1,18 +1,19 @@
-import { useState } from 'react';
-import {
-  FaCompass,
-  FaWalking,
-  FaHome,
-  FaChartLine,
-  FaCoins,
-  FaDiceD20,
-  FaMapMarkerAlt,
-  FaCheck,
-  FaSyncAlt,
-  FaExclamationTriangle
-} from 'react-icons/fa';
+import { useState, useEffect } from 'react';
+import NavBar from './components/NavBar';
+import Login from './pages/Login';
+import Terminal from './pages/Terminal';
+import History from './pages/History';
 
-function App() {
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [authMode, setAuthMode] = useState('login');
+  const [formUsername, setFormUsername] = useState('');
+  const [formPassword, setFormPassword] = useState('');
+  const [authError, setAuthError] = useState(null);
+
+  const [activeTab, setActiveTab] = useState('terminal');
+  const [completedHistory, setCompletedHistory] = useState([]);
+
   const [filters, setFilters] = useState({
     canLeaveHouse: true,
     budget: 0,
@@ -23,6 +24,30 @@ function App() {
   const [quest, setQuest] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setAuthError(null);
+    const endpoint = authMode === 'login' ? '/api/login' : '/api/register';
+
+    try {
+      const res = await fetch(`http://localhost:5000${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: formUsername, password: formPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      if (authMode === 'login') {
+        setUser(data.user);
+      } else {
+        setUser({ id: data.userId, username: formUsername, xp: 0, level: 1 });
+      }
+    } catch (err) {
+      setAuthError(err.message);
+    }
+  };
 
   const fetchQuest = async () => {
     setLoading(true);
@@ -44,143 +69,87 @@ function App() {
     }
   };
 
+  const completeQuest = async () => {
+    if (!quest || !user) return;
+    try {
+      const res = await fetch('http://localhost:5000/api/complete-quest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, questId: quest.id, xpReward: quest.xpReward })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      setUser({ ...user, xp: data.newXp, level: data.newLevel });
+      alert(`Objective complete! Gained ${quest.xpReward} XP.`);
+      setQuest(null);
+    } catch (err) {
+      alert('Error completing quest: ' + err.message);
+    }
+  };
+
+  const fetchHistory = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/user-history/${user.id}`);
+      const data = await res.json();
+      if (res.ok) setCompletedHistory(data);
+    } catch (err) {
+      console.error('Failed to load history');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'history') {
+      fetchHistory();
+    }
+  }, [activeTab]);
+
+  if (!user) {
+    return (
+      <Login
+        authMode={authMode}
+        setAuthMode={setAuthMode}
+        formUsername={formUsername}
+        setFormUsername={setFormUsername}
+        formPassword={formPassword}
+        setFormPassword={setFormPassword}
+        handleAuth={handleAuth}
+        authError={authError}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 selection:bg-amber-500 selection:text-slate-950 font-mono">
-
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b15_1px,transparent_1px),linear-gradient(to_bottom,#1e293b15_1px,transparent_1px)] bg-size-[4rem_4rem] pointer-events-none"></div>
 
-      <header className="mb-8 text-center relative z-10">
-        <div className="inline-flex items-center gap-2 px-3 py-1 border border-amber-500/30 bg-amber-500/10 text-amber-400 text-xs tracking-widest uppercase mb-3">
-          <FaCompass className="inline" /> Tactical Directive Terminal v1.0
-        </div>
-        <h1 className="text-3xl md:text-5xl font-black tracking-wider text-slate-100 uppercase flex items-center justify-center gap-3">
+      <NavBar
+        user={user}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onLogout={() => setUser(null)}
+      />
+
+      <header className="mb-6 text-center relative z-10">
+        <h1 className="text-3xl font-black tracking-wider text-slate-100 uppercase">
           Real Life Sidequests
         </h1>
-        <p className="text-slate-400 text-sm mt-2 tracking-wide">Break the monotony</p>
       </header>
 
-      <div className="w-full max-w-xl bg-slate-900 border border-slate-800 p-6 shadow-2xl relative z-10">
-        <div className="absolute -top-3 left-6 px-3 bg-slate-900 text-xs font-bold text-slate-400 uppercase tracking-widest border border-slate-800">
-          Control Panel
-        </div>
-
-        <div className="space-y-6 mt-2">
-
-          <div>
-            <label className="text-xs uppercase tracking-wider font-semibold mb-2 text-slate-400 flex items-center gap-2">
-              Status: <span className="text-amber-400">{filters.canLeaveHouse ? 'Ready to Roam' : 'Homebound'}</span>
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setFilters({ ...filters, canLeaveHouse: true })}
-                className={`py-3 px-4 font-bold text-sm tracking-wide transition flex items-center justify-center gap-2 border ${filters.canLeaveHouse
-                    ? 'bg-amber-500/10 border-amber-500 text-amber-400'
-                    : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
-                  }`}>
-                <FaWalking className="inline" /> Leave House
-              </button>
-              <button
-                onClick={() => setFilters({ ...filters, canLeaveHouse: false })}
-                className={`py-3 px-4 font-bold text-sm tracking-wide transition flex items-center justify-center gap-2 border ${!filters.canLeaveHouse
-                    ? 'bg-amber-500/10 border-amber-500 text-amber-400'
-                    : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
-                  }`}>
-                <FaHome className="inline" /> Stay Inside
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-xs uppercase tracking-wider font-semibold text-slate-400 flex items-center gap-2">
-                <FaChartLine className="inline" /> Challenge Rating
-              </label>
-              <span className="text-amber-400 font-bold text-sm">LVL {filters.adventurousness}</span>
-            </div>
-            <input
-              type="range"
-              min="1"
-              max="5"
-              value={filters.adventurousness}
-              onChange={(e) => setFilters({ ...filters, adventurousness: Number(e.target.value) })}
-              className="w-full accent-amber-500 bg-slate-800 cursor-pointer h-2"/>
-            <div className="flex justify-between text-[10px] text-slate-500 mt-1 uppercase">
-              <span>Low Risk</span>
-              <span>Moderate</span>
-              <span>Wild</span>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs uppercase tracking-wider font-semibold mb-2 text-slate-400 flex items-center gap-2">
-              <FaCoins className="inline" /> Financial Commitment
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: 'Free ($0)', val: 0 },
-                { label: 'Casual ($)', val: 1 },
-                { label: 'Expedition ($$)', val: 2 }
-              ].map((item) => (
-                <button
-                  key={item.val}
-                  onClick={() => setFilters({ ...filters, budget: item.val })}
-                  className={`py-2 px-2 text-xs font-bold transition border ${filters.budget === item.val
-                      ? 'bg-amber-500 text-slate-950 border-amber-400'
-                      : 'bg-slate-800/50 border-slate-700 text-slate-300 hover:border-slate-600'
-                    }`}>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <button
-            onClick={fetchQuest}
-            disabled={loading}
-            className="w-full mt-4 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black uppercase tracking-wider shadow-lg active:scale-[0.99] transition flex items-center justify-center gap-3 disabled:opacity-50 border border-amber-400">
-            <FaDiceD20 className={`text-xl ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Processing Parameters...' : 'Accept a Sidequest'}
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="w-full max-w-xl mt-4 bg-red-950/40 border border-red-500/50 p-4 text-red-400 text-xs flex items-center gap-3 relative z-10">
-          <FaExclamationTriangle className="text-lg shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {quest && (
-        <div className="w-full max-w-xl mt-6 bg-slate-900 border border-amber-500/40 p-6 shadow-2xl relative z-10 overflow-hidden">
-          <div className="absolute top-0 right-0 bg-amber-500 text-slate-950 text-[10px] font-black tracking-widest px-3 py-1 uppercase">
-            +{quest.xpReward} XP
-          </div>
-          <div className="text-[10px] uppercase tracking-widest text-amber-400 font-bold mb-1">
-            Quest Log // Target Acquired
-          </div>
-          <h2 className="text-xl font-black text-white flex items-center gap-2">
-            <FaMapMarkerAlt className="text-amber-500 text-sm" /> {quest.title}
-          </h2>
-          <p className="text-slate-300 text-sm mt-3 leading-relaxed border-l-2 border-amber-500/40 pl-3">
-            {quest.description}
-          </p>
-          <div className="mt-6 flex gap-3">
-            <button
-              onClick={() => alert("Objective complete! Experience points added.")}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs uppercase tracking-wider py-3 transition flex items-center justify-center gap-2 border border-emerald-500">
-              <FaCheck className="inline" /> Confirm Completion
-            </button>
-            <button
-              onClick={fetchQuest}
-              className="px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider py-3 transition border border-slate-700 flex items-center gap-2">
-              <FaSyncAlt className="inline" /> Reroll
-            </button>
-          </div>
-        </div>
+      {activeTab === 'terminal' ? (
+        <Terminal
+          filters={filters}
+          setFilters={setFilters}
+          fetchQuest={fetchQuest}
+          loading={loading}
+          error={error}
+          quest={quest}
+          completeQuest={completeQuest}
+        />
+      ) : (
+        <History completedHistory={completedHistory} />
       )}
     </div>
   );
 }
-
-export default App;
