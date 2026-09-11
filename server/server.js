@@ -33,8 +33,7 @@ db.getConnection((err, connection) => {
 app.post('/api/generate-quest', (req, res) => {
   const { canLeaveHouse, budget, locationType, adventurousness } = req.body;
 
-  // Build dynamic SQL query based on filters
-  let query = 'SELECT * FROM quests WHERE can_leave_house = ? AND budget <= ? AND adventurousness <= ?';
+  let query = 'SELECT id, title, description, can_leave_house, budget, location_type, adventurousness, xp_reward, verification_type, verification_data FROM quests WHERE can_leave_house = ? AND budget <= ? AND adventurousness <= ?';
   let queryParams = [canLeaveHouse, budget, adventurousness];
 
   if (locationType && locationType !== 'any') {
@@ -52,10 +51,8 @@ app.post('/api/generate-quest', (req, res) => {
       return res.status(404).json({ message: 'No quests match your exact criteria. Try broadening your parameters!' });
     }
 
-    // Pick a random quest from the returned rows
     const randomQuest = results[Math.floor(Math.random() * results.length)];
     
-    // Format column names back to camelCase for the frontend
     const formattedQuest = {
       id: randomQuest.id,
       title: randomQuest.title,
@@ -64,16 +61,14 @@ app.post('/api/generate-quest', (req, res) => {
       budget: randomQuest.budget,
       locationType: randomQuest.location_type,
       adventurousness: randomQuest.adventurousness,
-      xpReward: randomQuest.xp_reward
+      xpReward: randomQuest.xp_reward,
+      verification_type: randomQuest.verification_type,
+      verification_data: randomQuest.verification_data
     };
 
     res.json(formattedQuest);
   });
 });
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
 
 // Register User
 app.post('/api/register', async (req, res) => {
@@ -90,7 +85,6 @@ app.post('/api/register', async (req, res) => {
       }
       
       const userId = result.insertId;
-      // Initialize profile
       db.query('INSERT INTO user_profiles (user_id, xp, level) VALUES (?, 0, 1)', [userId]);
       
       res.json({ message: 'User registered successfully', userId });
@@ -112,7 +106,6 @@ app.post('/api/login', (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) return res.status(401).json({ message: 'Invalid username or password' });
 
-    // Fetch profile stats
     db.query('SELECT xp, level FROM user_profiles WHERE user_id = ?', [user.id], (err, profileResults) => {
       const profile = profileResults[0] || { xp: 0, level: 1 };
       res.json({
@@ -123,26 +116,63 @@ app.post('/api/login', (req, res) => {
   });
 });
 
-// Complete a Quest (Record history & update XP)
-app.post('/api/complete-quest', (req, res) => {
-  const { userId, questId, xpReward } = req.body;
+// Accept / Start a Quest (Sets status to 'active' or 'paused')
+app.post('/api/accept-quest', (req, res) => {
+  const { userId, questId, status = 'active' } = req.body;
 
-  db.query('INSERT INTO completed_quests (user_id, quest_id) VALUES (?, ?)', [userId, questId], (err) => {
-    if (err) return res.status(500).json({ message: 'Failed to record completion' });
+  db.query('INSERT INTO completed_quests (user_id, quest_id, status) VALUES (?, ?, ?)', [userId, questId, status], (err, result) => {
+    if (err) return res.status(500).json({ message: 'Failed to accept quest' });
+    res.json({ message: 'Quest logged', trackingId: result.insertId });
+  });
+});
 
-    // Update User XP
+// Get Paused Quests for a User
+app.get('/api/paused-quests/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const query = `
+    SELECT cq.id as tracking_id, q.id, q.title, q.description, q.xp_reward, q.verification_type, q.verification_data, cq.completed_at 
+    FROM completed_quests cq
+    JOIN quests q ON cq.quest_id = q.id
+    WHERE cq.user_id = ? AND cq.status = 'paused'
+    ORDER BY cq.completed_at DESC
+  `;
+  db.query(query, [userId], (err, results) => {
+    if (err) return res.status(500).json({ message: 'Database error' });
+    res.json(results);
+  });
+});
+
+// Pause an Active Quest
+app.post('/api/pause-quest', (req, res) => {
+  const { trackingId } = req.body;
+  db.query("UPDATE completed_quests SET status = 'paused' WHERE id = ?", [trackingId], (err) => {
+    if (err) return res.status(500).json({ message: 'Failed to pause quest' });
+    res.json({ message: 'Quest paused successfully' });
+  });
+});
+
+// Verify and Complete a Quest
+app.post('/api/verify-and-complete', (req, res) => {
+  const { trackingId, userId, questId, xpReward } = req.body;
+
+  const updateQuery = trackingId 
+    ? "UPDATE completed_quests SET status = 'completed' WHERE id = ?"
+    : "INSERT INTO completed_quests (user_id, quest_id, status) VALUES (?, ?, 'completed')";
+  
+  const queryParams = trackingId ? [trackingId] : [userId, questId];
+
+  db.query(updateQuery, queryParams, (err) => {
+    if (err) return res.status(500).json({ message: 'Failed to finalize quest' });
+
     db.query('SELECT xp, level FROM user_profiles WHERE user_id = ?', [userId], (err, results) => {
       if (err) return res.status(500).json({ message: 'Database error' });
 
       let currentXp = results[0].xp + xpReward;
-      let currentLevel = results[0].level;
-      
-      // Simple leveling algorithm: Every 100 XP = 1 Level
       let calculatedLevel = Math.floor(currentXp / 100) + 1;
 
       db.query('UPDATE user_profiles SET xp = ?, level = ? WHERE user_id = ?', [currentXp, calculatedLevel, userId], (err) => {
         if (err) return res.status(500).json({ message: 'Failed to update XP' });
-        res.json({ message: 'Quest completed', newXp: currentXp, newLevel: calculatedLevel });
+        res.json({ message: 'Quest verified and completed', newXp: currentXp, newLevel: calculatedLevel });
       });
     });
   });
@@ -156,7 +186,7 @@ app.get('/api/user-history/:userId', (req, res) => {
     SELECT q.id, q.title, q.description, q.xp_reward, cq.completed_at 
     FROM completed_quests cq
     JOIN quests q ON cq.quest_id = q.id
-    WHERE cq.user_id = ?
+    WHERE cq.user_id = ? AND cq.status = 'completed'
     ORDER BY cq.completed_at DESC
   `;
 
@@ -165,3 +195,6 @@ app.get('/api/user-history/:userId', (req, res) => {
     res.json(results);
   });
 });
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

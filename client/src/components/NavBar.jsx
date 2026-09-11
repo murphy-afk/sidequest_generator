@@ -16,6 +16,12 @@ export default function NavBar({ user, activeTab, setActiveTab, onLogout }) {
           {activeTab === 'terminal' ? <><FaHistory className="inline" /> History</> : <><FaCompass className="inline" /> Terminal</>}
         </button>
         <button
+          onClick={() => setActiveTab('paused')}
+          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 flex items-center gap-1 transition"
+        >
+          Paused
+        </button>
+        <button
           onClick={onLogout}
           className="px-3 py-1 bg-red-950/40 hover:bg-red-900/50 border border-red-500/40 text-red-400 flex items-center gap-1 transition"
         >
