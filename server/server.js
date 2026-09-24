@@ -253,3 +253,17 @@ app.get('/api/user-history/:userId', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// 1. Submit a quest suggestion (Public form)
+app.post('/api/suggest-quest', (req, res) => {
+  const { userId, description, locationType, budget } = req.body;
+  if (!description || !locationType) {
+    return res.status(400).json({ message: 'Description and location type are required.' });
+  }
+
+  const query = 'INSERT INTO quest_suggestions (user_id, description, location_type, budget, status) VALUES (?, ?, ?, ?, ?)';
+  db.query(query, [userId, description, locationType, budget || 0, 'pending'], (err) => {
+    if (err) return res.status(500).json({ message: 'Failed to submit suggestion.' });
+    res.json({ message: 'Suggestion submitted successfully.' });
+  });
+});
