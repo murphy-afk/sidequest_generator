@@ -262,15 +262,23 @@ app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 // 1. Submit a quest suggestion (Public form)
 app.post('/api/suggest-quest', (req, res) => {
-  const { userId, description, locationType, budget } = req.body;
-  if (!description || !locationType) {
-    return res.status(400).json({ message: 'Description and location type are required.' });
+  const { userId, title, description, locationType, budget } = req.body;
+
+  if (!title || !description) {
+    return res.status(400).json({ message: 'Title and description are required.' });
   }
 
-  const query = 'INSERT INTO quest_suggestions (user_id, description, location_type, budget, status) VALUES (?, ?, ?, ?, ?)';
-  db.query(query, [userId, description, locationType, budget || 0, 'pending'], (err) => {
-    if (err) return res.status(500).json({ message: 'Failed to submit suggestion.' });
-    res.json({ message: 'Suggestion submitted successfully.' });
+  const query = `
+    INSERT INTO quest_suggestions (user_id, title, description, location_type, budget, status) 
+    VALUES (?, ?, ?, ?, ?, 'pending')
+  `;
+
+  db.query(query, [userId, title, description, locationType || 'indoors', budget || 0], (err) => {
+    if (err) {
+      console.error('Error saving suggestion:', err.message);
+      return res.status(500).json({ message: 'Failed to submit suggestion.' });
+    }
+    res.json({ message: 'Sidequest suggestion submitted successfully!' });
   });
 });
 

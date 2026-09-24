@@ -36,7 +36,7 @@ export default function AdminPanel({ user }) {
   const handleSelectSuggestion = (s) => {
     setSelectedSuggestionId(s.id);
     setFormData({
-      title: 'Discovered Objective',
+      title: s.title || 'Discovered Objective',
       description: s.description,
       xpReward: 50,
       canLeaveHouse: s.location_type === 'outdoors' ? 1 : 0,
