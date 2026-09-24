@@ -29,12 +29,26 @@ db.getConnection((err, connection) => {
   connection.release();
 });
 
-// API Endpoint 
+
+// Generate quest
+const recentQuestCache = [];
+
 app.post('/api/generate-quest', (req, res) => {
-  const { canLeaveHouse, budget, locationType, adventurousness } = req.body;
+  const canLeaveHouse = req.body.canLeaveHouse ?? req.body.can_leave_house ?? 0;
+  const budget = req.body.budget ?? 0;
+  const adventurousness = req.body.adventurousness ?? 5;
+  
+  let locationType = req.body.locationType ?? req.body.location_type ?? 'any';
+  if (locationType !== 'indoors' && locationType !== 'outdoors') {
+    locationType = 'any';
+  }
+
+  const numericCanLeaveHouse = canLeaveHouse ? 1 : 0;
+  const parsedBudget = Number(budget) || 0;
+  const parsedAdventurousness = Number(adventurousness) || 5;
 
   let query = 'SELECT id, title, description, can_leave_house, budget, location_type, adventurousness, xp_reward, verification_type, verification_data FROM quests WHERE can_leave_house = ? AND budget <= ? AND adventurousness <= ?';
-  let queryParams = [canLeaveHouse, budget, adventurousness];
+  let queryParams = [numericCanLeaveHouse, parsedBudget, parsedAdventurousness];
 
   if (locationType && locationType !== 'any') {
     query += ' AND location_type = ?';
@@ -43,7 +57,7 @@ app.post('/api/generate-quest', (req, res) => {
 
   db.query(query, queryParams, (err, results) => {
     if (err) {
-      console.error(err);
+      console.error('Quest Generation SQL Error:', err);
       return res.status(500).json({ message: 'Database error' });
     }
 
@@ -51,7 +65,19 @@ app.post('/api/generate-quest', (req, res) => {
       return res.status(404).json({ message: 'No quests match your exact criteria. Try broadening your parameters!' });
     }
 
-    const randomQuest = results[Math.floor(Math.random() * results.length)];
+    let availableQuests = results.filter(q => !recentQuestCache.includes(q.id));
+
+    if (availableQuests.length === 0) {
+      recentQuestCache.length = 0;
+      availableQuests = results;
+    }
+
+    const randomQuest = availableQuests[Math.floor(Math.random() * availableQuests.length)];
+
+    recentQuestCache.push(randomQuest.id);
+    if (recentQuestCache.length > 3) {
+      recentQuestCache.shift();
+    }
 
     const formattedQuest = {
       id: randomQuest.id,
@@ -110,19 +136,19 @@ app.post('/api/login', (req, res) => {
       const profile = profileResults[0] || { xp: 0, level: 1 };
       res.json({
         message: 'Login successful',
-        user: { 
-          id: user.id, 
-          username: user.username, 
-          xp: profile.xp, 
+        user: {
+          id: user.id,
+          username: user.username,
+          xp: profile.xp,
           level: profile.level,
-          is_admin: user.is_admin ? 1 : 0 
+          is_admin: user.is_admin ? 1 : 0
         }
       });
     });
   });
 });
 
-// Accept / Start a Quest (Sets status to 'active' and records timestamp)
+// Accept / Start a Quest
 app.post('/api/accept-quest', (req, res) => {
   const { userId, questId, status = 'active' } = req.body;
 
@@ -153,7 +179,7 @@ app.get('/api/paused-quests/:userId', (req, res) => {
   });
 });
 
-// Pause an Active Quest (now saves remaining time)
+// Pause an Active Quest
 app.post('/api/pause-quest', (req, res) => {
   const { trackingId, remainingSeconds } = req.body;
   const query = "UPDATE completed_quests SET status = 'paused', remaining_seconds = ? WHERE id = ?";
@@ -164,11 +190,10 @@ app.post('/api/pause-quest', (req, res) => {
   });
 });
 
-// Resume a Paused Quest (Restores status to 'active' and adjusts start time)
+// Resume a Paused Quest
 app.post('/api/resume-quest', (req, res) => {
   const { trackingId } = req.body;
 
-  // get the paused quest data and its remaining seconds
   const fetchQuery = `
     SELECT cq.remaining_seconds, q.verification_data 
     FROM completed_quests cq
@@ -191,7 +216,6 @@ app.post('/api/resume-quest', (req, res) => {
     const remaining = row.remaining_seconds !== null ? row.remaining_seconds : totalDurationSecs;
     const elapsed = totalDurationSecs - remaining;
 
-    // Update status to active and adjust completed_at 
     const updateQuery = `
       UPDATE completed_quests 
       SET status = 'active', 
@@ -203,7 +227,6 @@ app.post('/api/resume-quest', (req, res) => {
     db.query(updateQuery, [elapsed, trackingId], (err) => {
       if (err) return res.status(500).json({ message: 'Failed to resume quest' });
 
-      // Return the updated start time
       db.query('SELECT completed_at FROM completed_quests WHERE id = ?', [trackingId], (err, timeResult) => {
         const startTime = timeResult[0] ? timeResult[0].completed_at : new Date();
         res.json({ message: 'Quest resumed', startTime });
@@ -257,10 +280,7 @@ app.get('/api/user-history/:userId', (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-// 1. Submit a quest suggestion (Public form)
+// Submit a quest suggestion (Public form)
 app.post('/api/suggest-quest', (req, res) => {
   const { userId, title, description, locationType, budget } = req.body;
 
@@ -282,7 +302,7 @@ app.post('/api/suggest-quest', (req, res) => {
   });
 });
 
-// 1. Fetch pending suggestions (Admin only)
+// Fetch pending suggestions (Admin only)
 app.get('/api/admin/suggestions', (req, res) => {
   const query = `
     SELECT qs.*, u.username 
@@ -297,7 +317,7 @@ app.get('/api/admin/suggestions', (req, res) => {
   });
 });
 
-// 2. Approve and convert a suggestion into an official active quest
+// Approve and convert a suggestion into an official active quest
 app.post('/api/admin/approve-suggestion', (req, res) => {
   const { suggestionId, title, description, xpReward, canLeaveHouse, budget, adventurousness, locationType, verificationType, verificationData } = req.body;
 
@@ -305,7 +325,7 @@ app.post('/api/admin/approve-suggestion', (req, res) => {
     INSERT INTO quests (title, description, xp_reward, can_leave_house, budget, adventurousness, location_type, verification_type, verification_data) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
-  
+
   db.query(insertQuery, [title, description, xpReward, canLeaveHouse, budget, adventurousness, locationType, verificationType, verificationData], (err) => {
     if (err) return res.status(500).json({ message: 'Failed to create quest from suggestion.' });
 
@@ -316,7 +336,7 @@ app.post('/api/admin/approve-suggestion', (req, res) => {
   });
 });
 
-// 3. Direct Admin creation of a new quest
+// Direct Admin creation of a new quest
 app.post('/api/admin/create-quest', (req, res) => {
   const { title, description, xpReward, canLeaveHouse, budget, adventurousness, locationType, verificationType, verificationData } = req.body;
 
@@ -324,9 +344,13 @@ app.post('/api/admin/create-quest', (req, res) => {
     INSERT INTO quests (title, description, xp_reward, can_leave_house, budget, adventurousness, location_type, verification_type, verification_data) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
-  
+
   db.query(query, [title, description, xpReward, canLeaveHouse, budget, adventurousness, locationType, verificationType, verificationData], (err) => {
     if (err) return res.status(500).json({ message: 'Failed to create quest.' });
     res.json({ message: 'Quest successfully created.' });
   });
 });
+
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
