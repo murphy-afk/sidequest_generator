@@ -267,3 +267,52 @@ app.post('/api/suggest-quest', (req, res) => {
     res.json({ message: 'Suggestion submitted successfully.' });
   });
 });
+
+// 1. Fetch pending suggestions (Admin only)
+app.get('/api/admin/suggestions', (req, res) => {
+  const query = `
+    SELECT qs.*, u.username 
+    FROM quest_suggestions qs 
+    JOIN users u ON qs.user_id = u.id 
+    WHERE qs.status = 'pending' 
+    ORDER BY qs.created_at DESC
+  `;
+  db.query(query, (err, results) => {
+    if (err) return res.status(500).json({ message: 'Failed to fetch suggestions.' });
+    res.json(results);
+  });
+});
+
+// 2. Approve and convert a suggestion into an official active quest
+app.post('/api/admin/approve-suggestion', (req, res) => {
+  const { suggestionId, title, description, xpReward, canLeaveHouse, budget, adventurousness, locationType, verificationType, verificationData } = req.body;
+
+  const insertQuery = `
+    INSERT INTO quests (title, description, xp_reward, can_leave_house, budget, adventurousness, location_type, verification_type, verification_data) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  
+  db.query(insertQuery, [title, description, xpReward, canLeaveHouse, budget, adventurousness, locationType, verificationType, verificationData], (err) => {
+    if (err) return res.status(500).json({ message: 'Failed to create quest from suggestion.' });
+
+    db.query("UPDATE quest_suggestions SET status = 'approved' WHERE id = ?", [suggestionId], (err2) => {
+      if (err2) return res.status(500).json({ message: 'Failed to update suggestion status.' });
+      res.json({ message: 'Quest approved and added to database.' });
+    });
+  });
+});
+
+// 3. Direct Admin creation of a new quest
+app.post('/api/admin/create-quest', (req, res) => {
+  const { title, description, xpReward, canLeaveHouse, budget, adventurousness, locationType, verificationType, verificationData } = req.body;
+
+  const query = `
+    INSERT INTO quests (title, description, xp_reward, can_leave_house, budget, adventurousness, location_type, verification_type, verification_data) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  
+  db.query(query, [title, description, xpReward, canLeaveHouse, budget, adventurousness, locationType, verificationType, verificationData], (err) => {
+    if (err) return res.status(500).json({ message: 'Failed to create quest.' });
+    res.json({ message: 'Quest successfully created.' });
+  });
+});
