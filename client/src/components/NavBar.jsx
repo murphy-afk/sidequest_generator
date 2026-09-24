@@ -1,4 +1,4 @@
-import { FaTerminal, FaPause, FaHistory, FaLightbulb, FaSignOutAlt } from 'react-icons/fa';
+import { FaTerminal, FaPause, FaHistory, FaLightbulb, FaShieldAlt, FaSignOutAlt } from 'react-icons/fa';
 
 export default function Navbar({ user, activeTab, setActiveTab, onLogout }) {
   return (
@@ -26,6 +26,12 @@ export default function Navbar({ user, activeTab, setActiveTab, onLogout }) {
         <button onClick={() => setActiveTab('suggest')} className={`px-3 py-1.5 font-bold flex items-center gap-1 transition ${activeTab === 'suggest' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-950 text-emerald-400 border border-slate-800 hover:bg-emerald-950/30'}`}>
           <FaLightbulb /> Suggest
         </button>
+
+        {user.is_admin ? (
+          <button onClick={() => setActiveTab('admin')} className={`px-3 py-1.5 font-bold flex items-center gap-1 transition ${activeTab === 'admin' ? 'bg-amber-500 text-slate-950' : 'bg-slate-950 text-amber-400 border border-amber-500/50 hover:bg-amber-950/30'}`}>
+            <FaShieldAlt /> Admin
+          </button>
+        ) : null}
 
         <button onClick={onLogout} className="p-1.5 bg-slate-950 text-red-400 border border-slate-800 hover:bg-red-950/30 transition ml-2" title="Disconnect Session">
           <FaSignOutAlt />

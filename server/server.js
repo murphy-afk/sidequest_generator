@@ -110,7 +110,13 @@ app.post('/api/login', (req, res) => {
       const profile = profileResults[0] || { xp: 0, level: 1 };
       res.json({
         message: 'Login successful',
-        user: { id: user.id, username: user.username, xp: profile.xp, level: profile.level }
+        user: { 
+          id: user.id, 
+          username: user.username, 
+          xp: profile.xp, 
+          level: profile.level,
+          is_admin: user.is_admin ? 1 : 0 
+        }
       });
     });
   });

@@ -9,6 +9,7 @@ import ActiveQuestModal from './components/ActiveQuestModal';
 import VerificationModal from './components/VerificationModal';
 import SuggestQuest from './pages/SuggestQuest';
 import { useQuests } from './hooks/useQuests';
+import AdminPanel from './pages/AdminPanel';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -69,6 +70,10 @@ export default function App() {
           Real Life Sidequests
         </h1>
       </header>
+      
+      {activeTab === 'admin' && user.is_admin && (
+        <AdminPanel user={user} />
+      )}
 
       {activeTab === 'terminal' && (
         <Terminal filters={filters} setFilters={setFilters} fetchQuest={fetchQuest} loading={loading} error={error} activeQuest={activeQuest} openActiveProgress={() => setShowActiveModal(true)} />
