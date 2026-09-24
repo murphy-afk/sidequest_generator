@@ -239,6 +239,10 @@ app.post('/api/resume-quest', (req, res) => {
 app.post('/api/verify-and-complete', (req, res) => {
   const { trackingId, userId, questId, xpReward } = req.body;
 
+  if (!userId) {
+    return res.status(400).json({ message: 'Missing userId for quest completion' });
+  }
+
   const updateQuery = trackingId
     ? "UPDATE completed_quests SET status = 'completed' WHERE id = ?"
     : "INSERT INTO completed_quests (user_id, quest_id, status) VALUES (?, ?, 'completed')";
@@ -251,7 +255,16 @@ app.post('/api/verify-and-complete', (req, res) => {
     db.query('SELECT xp, level FROM user_profiles WHERE user_id = ?', [userId], (err, results) => {
       if (err) return res.status(500).json({ message: 'Database error' });
 
-      let currentXp = results[0].xp + xpReward;
+      // If no profile exists for this user yet, create one automatically
+      if (!results || results.length === 0) {
+        db.query('INSERT INTO user_profiles (user_id, xp, level) VALUES (?, ?, ?)', [userId, xpReward, Math.floor(xpReward / 100) + 1], (insertErr) => {
+          if (insertErr) return res.status(500).json({ message: 'Failed to create user profile' });
+          return res.json({ message: 'Quest verified and completed', newXp: xpReward, newLevel: Math.floor(xpReward / 100) + 1 });
+        });
+        return;
+      }
+
+      let currentXp = (results[0].xp || 0) + Number(xpReward);
       let calculatedLevel = Math.floor(currentXp / 100) + 1;
 
       db.query('UPDATE user_profiles SET xp = ?, level = ? WHERE user_id = ?', [currentXp, calculatedLevel, userId], (err) => {

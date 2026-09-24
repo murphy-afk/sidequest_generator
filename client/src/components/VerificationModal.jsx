@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FaTimes, FaCheck, FaQuestionCircle, FaCamera, FaHourglassHalf } from 'react-icons/fa';
+import { FaTimes, FaCheck, FaQuestionCircle, FaCamera } from 'react-icons/fa';
 
 export default function VerificationModal({ quest, trackingId, onClose, onSuccess }) {
   if (!quest) return null;
@@ -13,35 +13,35 @@ export default function VerificationModal({ quest, trackingId, onClose, onSucces
     verificationData = {};
   }
 
-  // State for quiz type
-  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [selectedAnswer, setSelectedAnswer] = useState('');
   const [quizError, setQuizError] = useState(false);
-
-  // State for photo upload type
   const [selectedFile, setSelectedFile] = useState(null);
 
   const handleVerifySubmit = (e) => {
     e.preventDefault();
+    setQuizError(false);
 
+    // 1. Quiz Validation
     if (quest.verification_type === 'quiz') {
-      if (selectedAnswer === verificationData.correctAnswer) {
-        onSuccess(trackingId);
-      } else {
+      if (!selectedAnswer || selectedAnswer !== verificationData.correctAnswer) {
         setQuizError(true);
-      }
-      return;
-    }
-
-    if (quest.verification_type === 'photo') {
-      if (!selectedFile) {
-        alert('Please upload photo proof to complete verification.');
         return;
       }
-      onSuccess(trackingId);
+    }
+
+    // 2. Photo Validation
+    if (quest.verification_type === 'photo' && !selectedFile) {
+      alert('Please upload photo proof to complete verification.');
       return;
     }
 
-    onSuccess(trackingId);
+    // Pass the trackingId back to the hook's verifyAndComplete function
+    if (onSuccess) {
+      onSuccess(trackingId || quest.trackingId);
+    }
+    if (onClose) {
+      onClose();
+    }
   };
 
   return (
@@ -62,7 +62,7 @@ export default function VerificationModal({ quest, trackingId, onClose, onSucces
           Answer this checkpoint question based on your discovery to verify completion:
         </p>
 
-        {/* 1. QUIZ / DISCOVERY CHECKPOINT */}
+        {/* 1. QUIZ CHECKPOINT */}
         {quest.verification_type === 'quiz' && (
           <div className="space-y-4 mb-6">
             <div className="text-xs font-bold text-amber-400 flex items-center gap-2 leading-relaxed">
@@ -74,11 +74,12 @@ export default function VerificationModal({ quest, trackingId, onClose, onSucces
                 <button
                   key={index}
                   type="button"
-                  onClick={() => { setSelectedAnswer(index); setQuizError(false); }}
-                  className={`w-full text-left p-3 text-xs border transition ${selectedAnswer === index
+                  onClick={() => { setSelectedAnswer(option); setQuizError(false); }}
+                  className={`w-full text-left p-3 text-xs border transition ${
+                    selectedAnswer === option
                       ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold'
                       : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
-                    }`}
+                  }`}
                 >
                   {option}
                 </button>
@@ -94,7 +95,7 @@ export default function VerificationModal({ quest, trackingId, onClose, onSucces
         {quest.verification_type === 'photo' && (
           <div className="space-y-4 mb-6">
             <div className="text-xs font-bold text-amber-400 flex items-center gap-2">
-              <FaCamera /> {verificationData.prompt || 'Upload photographic proof of your discovery:'}
+              <FaCamera /> {verificationData.prompt || verificationData.instruction || 'Upload photographic proof of your discovery:'}
             </div>
             <label className="border-2 border-dashed border-slate-700 hover:border-amber-500 bg-slate-950 p-6 flex flex-col items-center justify-center cursor-pointer transition">
               <FaCamera className="text-slate-500 text-2xl mb-2" />
@@ -111,7 +112,7 @@ export default function VerificationModal({ quest, trackingId, onClose, onSucces
           </div>
         )}
 
-        {/* 3. TIMER / STANDARD FALLBACK */}
+        {/* 3. STANDARD FALLBACK */}
         {quest.verification_type !== 'quiz' && quest.verification_type !== 'photo' && (
           <div className="mb-6 bg-slate-950 border border-slate-800 p-4 text-xs text-slate-400 text-center">
             Click verify below to finalize objective completion.

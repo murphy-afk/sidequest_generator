@@ -17,6 +17,8 @@ export default function App() {
   const [formUsername, setFormUsername] = useState('');
   const [formPassword, setFormPassword] = useState('');
   const [authError, setAuthError] = useState(null);
+  const [activeTrackingId, setActiveTrackingId] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
   const {
     activeTab, setActiveTab,
@@ -70,7 +72,7 @@ export default function App() {
           Real Life Sidequests
         </h1>
       </header>
-      
+
       {activeTab === 'admin' && user.is_admin && (
         <AdminPanel user={user} />
       )}
@@ -90,7 +92,7 @@ export default function App() {
       {activeTab === 'suggest' && (
         <SuggestQuest user={user} />
       )}
-      
+
       {previewQuest && (
         <QuestPreviewModal quest={previewQuest} onClose={() => setPreviewQuest(null)} onReroll={fetchQuest} onAccept={acceptQuest} />
       )}
@@ -105,9 +107,17 @@ export default function App() {
           }
         }} />
       )}
-
-      {verificationQuest && (
-        <VerificationModal quest={verificationQuest} trackingId={verificationQuest.trackingId} onClose={() => setVerificationQuest(null)} onSuccess={verifyAndComplete} />
+{verificationQuest && (
+        <VerificationModal
+          quest={verificationQuest}
+          trackingId={verificationQuest.trackingId || activeTrackingId}
+          user={user}
+          onClose={() => setVerificationQuest(null)}
+          onSuccess={(trackingIdToUse) => {
+            verifyAndComplete(trackingIdToUse);
+            alert(`Congratulations! Sidequest complete!`);
+          }}
+        />
       )}
     </div>
   );
